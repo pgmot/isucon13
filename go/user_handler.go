@@ -488,7 +488,7 @@ func verifyUserSession(c echo.Context) error {
 }
 
 func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (User, error) {
-	user, err := fillUserResponseBase(ctx, userModel)
+	user, err := fillUserResponseBase(ctx, tx, userModel)
 	if err != nil {
 		return user, err
 	}
@@ -503,9 +503,9 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 	return user, nil
 }
 
-func fillUserResponseBase(ctx context.Context, userModel UserModel) (User, error) {
+func fillUserResponseBase(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (User, error) {
 	themeModel := ThemeModel{}
-	if err := dbConn.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
+	if err := tx.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
 		return User{}, err
 	}
 
@@ -530,10 +530,19 @@ func fetchUserResponse(userID int64) (*User, error) {
 	if err := dbConn.GetContext(ctx, &userModel, "SELECT * FROM users WHERE id = ?", userID); err != nil {
 		return nil, err
 	}
-	user, err := fillUserResponseBase(ctx, userModel)
+
+	tx, err := dbConn.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
+	defer tx.Rollback()
+
+	user, err := fillUserResponseBase(ctx, tx, userModel)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.Commit()
 
 	return &user, nil
 }
