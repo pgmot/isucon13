@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"strconv"
 	"time"
 
@@ -202,8 +203,9 @@ func postLivecommentHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get NG words: "+err.Error())
 	}
 
-	var hitSpam int
+	// var hitSpam int
 	for _, ngword := range ngwords {
+		/*
 		query := `
 		SELECT COUNT(*)
 		FROM
@@ -216,8 +218,12 @@ func postLivecommentHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get hitspam: "+err.Error())
 		}
 		c.Logger().Infof("[hitSpam=%d] comment = %s", hitSpam, req.Comment)
-		if hitSpam >= 1 {
+		*/
+		if strings.Contains(req.Comment, ngword.Word) {
+			c.Logger().Infof("[hitSpam=%d] comment = %s", 1, req.Comment)
 			return echo.NewHTTPError(http.StatusBadRequest, "このコメントがスパム判定されました")
+		} else {
+			c.Logger().Infof("[hitSpam=%d] comment = %s", 0, req.Comment)
 		}
 	}
 
