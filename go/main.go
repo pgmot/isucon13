@@ -156,6 +156,14 @@ func initializeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize pdns: "+ initPdnsResult.Error())
 	}
 
+	if _, err := dbConn.ExecContext(c.Request().Context(), "UPDATE livestreams AS l SET l.reaction_count = (SELECT COUNT(*) FROM reactions AS r where r.livestream_id = l.id)"); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	}
+
+	if _, err := dbConn.ExecContext(c.Request().Context(), "UPDATE livestreams AS l SET l.user_name = (SELECT name FROM users AS u where l.user_id = u.id)"); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	}
+
 	c.Request().Header.Add("Content-Type", "application/json;charset=utf-8")
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "golang",

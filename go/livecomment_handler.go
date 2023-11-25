@@ -241,6 +241,12 @@ func postLivecommentHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livecomment: "+err.Error())
 	}
 
+	if livecommentModel.Tip > 0 {
+		if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET total_tip = total_tip + ? WHERE id = ?", livecommentModel.Tip, livestreamID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to update total_tip: "+err.Error())
+		}
+	}
+
 	livecommentID, err := rs.LastInsertId()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get last inserted livecomment id: "+err.Error())
@@ -425,6 +431,10 @@ func moderateHandler(c echo.Context) error {
 		*/
 	}
 
+	if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET total_tip = (SELECT IFNULL(SUM(tip), 0) FROM livecomments WHERE livestream_id = ?) WHERE id = ?", livestreamID, livestreamID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update total_tip: "+err.Error())
+	}
+
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
@@ -444,11 +454,7 @@ func fillLivecommentResponse(ctx context.Context, tx *sqlx.Tx, livecommentModel 
 		return Livecomment{}, err
 	}
 
-	livestreamModel := LivestreamModel{}
-	if err := tx.GetContext(ctx, &livestreamModel, "SELECT * FROM livestreams WHERE id = ?", livecommentModel.LivestreamID); err != nil {
-		return Livecomment{}, err
-	}
-	livestream, err := fillLivestreamResponse(ctx, tx, livestreamModel)
+	livestream, err := fetchLivestreamResponseWithCacheFixed(livecommentModel.LivestreamID)
 	if err != nil {
 		return Livecomment{}, err
 	}
@@ -456,7 +462,7 @@ func fillLivecommentResponse(ctx context.Context, tx *sqlx.Tx, livecommentModel 
 	livecomment := Livecomment{
 		ID:         livecommentModel.ID,
 		User:       commentOwner,
-		Livestream: livestream,
+		Livestream: *livestream,
 		Comment:    livecommentModel.Comment,
 		Tip:        livecommentModel.Tip,
 		CreatedAt:  livecommentModel.CreatedAt,

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/coocood/freecache"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -32,14 +33,18 @@ type LivestreamViewerModel struct {
 }
 
 type LivestreamModel struct {
-	ID           int64  `db:"id" json:"id"`
-	UserID       int64  `db:"user_id" json:"user_id"`
-	Title        string `db:"title" json:"title"`
-	Description  string `db:"description" json:"description"`
-	PlaylistUrl  string `db:"playlist_url" json:"playlist_url"`
-	ThumbnailUrl string `db:"thumbnail_url" json:"thumbnail_url"`
-	StartAt      int64  `db:"start_at" json:"start_at"`
-	EndAt        int64  `db:"end_at" json:"end_at"`
+	ID            int64  `db:"id" json:"id"`
+	UserID        int64  `db:"user_id" json:"user_id"`
+	Title         string `db:"title" json:"title"`
+	Description   string `db:"description" json:"description"`
+	PlaylistUrl   string `db:"playlist_url" json:"playlist_url"`
+	ThumbnailUrl  string `db:"thumbnail_url" json:"thumbnail_url"`
+	StartAt       int64  `db:"start_at" json:"start_at"`
+	EndAt         int64  `db:"end_at" json:"end_at"`
+	ViewerCount   int64  `db:"viewer_count" json:"-"`
+	ReactionCount int64  `db:"reaction_count" json:"-"`
+	TotalTip      int64  `db:"total_tip" json:"-"`
+	UserName      string `db:"user_name" json:"-"`
 }
 
 type Livestream struct {
@@ -120,6 +125,10 @@ func reserveLivestreamHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("予約期間 %d ~ %dに対して、予約区間 %d ~ %dが予約できません", termStartAt.Unix(), termEndAt.Unix(), req.StartAt, req.EndAt))
 		}
 	}
+	var username string
+	if err := tx.GetContext(ctx, &username, "SELECT name FROM users WHERE id = ?", userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get users: "+err.Error())
+	}
 
 	var (
 		livestreamModel = &LivestreamModel{
@@ -130,6 +139,7 @@ func reserveLivestreamHandler(c echo.Context) error {
 			ThumbnailUrl: req.ThumbnailUrl,
 			StartAt:      req.StartAt,
 			EndAt:        req.EndAt,
+			UserName:     username,
 		}
 	)
 
@@ -137,7 +147,7 @@ func reserveLivestreamHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update reservation_slot: "+err.Error())
 	}
 
-	rs, err := tx.NamedExecContext(ctx, "INSERT INTO livestreams (user_id, title, description, playlist_url, thumbnail_url, start_at, end_at) VALUES(:user_id, :title, :description, :playlist_url, :thumbnail_url, :start_at, :end_at)", livestreamModel)
+	rs, err := tx.NamedExecContext(ctx, "INSERT INTO livestreams (user_id, title, description, playlist_url, thumbnail_url, start_at, end_at, user_name) VALUES(:user_id, :title, :description, :playlist_url, :thumbnail_url, :start_at, :end_at, :user_name)", livestreamModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livestream: "+err.Error())
 	}
@@ -180,9 +190,10 @@ func searchLivestreamsHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	var livestreamModels []*LivestreamModel
+	var livestreamIDs []int64
 	if c.QueryParam("tag") != "" {
 		// タグによる取得
+		// 1件しかない
 		var tagIDList []int
 		if err := tx.SelectContext(ctx, &tagIDList, "SELECT id FROM tags WHERE name = ?", keyTagName); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get tags: "+err.Error())
@@ -198,16 +209,11 @@ func searchLivestreamsHandler(c echo.Context) error {
 		}
 
 		for _, keyTaggedLivestream := range keyTaggedLivestreams {
-			ls := LivestreamModel{}
-			if err := tx.GetContext(ctx, &ls, "SELECT * FROM livestreams WHERE id = ?", keyTaggedLivestream.LivestreamID); err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
-			}
-
-			livestreamModels = append(livestreamModels, &ls)
+			livestreamIDs = append(livestreamIDs, keyTaggedLivestream.LivestreamID)
 		}
 	} else {
 		// 検索条件なし
-		query := `SELECT * FROM livestreams ORDER BY id DESC`
+		query := `SELECT id FROM livestreams ORDER BY id DESC`
 		if c.QueryParam("limit") != "" {
 			limit, err := strconv.Atoi(c.QueryParam("limit"))
 			if err != nil {
@@ -216,18 +222,19 @@ func searchLivestreamsHandler(c echo.Context) error {
 			query += fmt.Sprintf(" LIMIT %d", limit)
 		}
 
-		if err := tx.SelectContext(ctx, &livestreamModels, query); err != nil {
+		if err := tx.SelectContext(ctx, &livestreamIDs, query); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 		}
 	}
 
-	livestreams := make([]Livestream, len(livestreamModels))
-	for i := range livestreamModels {
-		livestream, err := fillLivestreamResponse(ctx, tx, *livestreamModels[i])
+	livestreams := make([]Livestream, len(livestreamIDs))
+	for i := range livestreamIDs {
+		livestream, err := fetchLivestreamResponseWithCacheFixed(livestreamIDs[i])
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
 		}
-		livestreams[i] = livestream
+
+		livestreams[i] = *livestream
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -325,11 +332,6 @@ func enterLivestreamHandler(c echo.Context) error {
 		return err
 	}
 
-	// error already checked
-	sess, _ := session.Get(defaultSessionIDKey, c)
-	// existence already checked
-	userID := sess.Values[defaultUserIDKey].(int64)
-
 	livestreamID, err := strconv.Atoi(c.Param("livestream_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "livestream_id must be integer")
@@ -341,14 +343,8 @@ func enterLivestreamHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	viewer := LivestreamViewerModel{
-		UserID:       int64(userID),
-		LivestreamID: int64(livestreamID),
-		CreatedAt:    time.Now().Unix(),
-	}
-
-	if _, err := tx.NamedExecContext(ctx, "INSERT INTO livestream_viewers_history (user_id, livestream_id, created_at) VALUES(:user_id, :livestream_id, :created_at)", viewer); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livestream_view_history: "+err.Error())
+	if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET viewer_count = viewer_count + 1 WHERE id = ?", livestreamID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update livestreams.viewer_conut: "+err.Error())
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -365,11 +361,6 @@ func exitLivestreamHandler(c echo.Context) error {
 		return err
 	}
 
-	// error already checked
-	sess, _ := session.Get(defaultSessionIDKey, c)
-	// existence already checked
-	userID := sess.Values[defaultUserIDKey].(int64)
-
 	livestreamID, err := strconv.Atoi(c.Param("livestream_id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "livestream_id in path must be integer")
@@ -381,8 +372,8 @@ func exitLivestreamHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM livestream_viewers_history WHERE user_id = ? AND livestream_id = ?", userID, livestreamID); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete livestream_view_history: "+err.Error())
+	if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET viewer_count = viewer_count - 1 WHERE id = ?", livestreamID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update livestreams.viewer_conut: "+err.Error())
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -410,16 +401,10 @@ func getLivestreamHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	livestreamModel := LivestreamModel{}
-	err = tx.GetContext(ctx, &livestreamModel, "SELECT * FROM livestreams WHERE id = ?", livestreamID)
+	livestream, err := fetchLivestreamResponseWithCacheFixed(int64(livestreamID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusNotFound, "not found livestream that has the given id")
 	}
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestream: "+err.Error())
-	}
-
-	livestream, err := fillLivestreamResponse(ctx, tx, livestreamModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
 	}
@@ -523,5 +508,88 @@ func fillLivestreamResponse(ctx context.Context, tx *sqlx.Tx, livestreamModel Li
 		StartAt:      livestreamModel.StartAt,
 		EndAt:        livestreamModel.EndAt,
 	}
+	return livestream, nil
+}
+
+func fetchLivestreamResponse(livestreamID int64) (*Livestream, error) {
+	ctx := context.Background()
+	livestreamModel := LivestreamModel{}
+	err := dbConn.GetContext(ctx, &livestreamModel, "SELECT * FROM livestreams WHERE id = ?", livestreamID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := dbConn.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	livestream, err := fillLivestreamResponse(ctx, tx, livestreamModel)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return &livestream, nil
+}
+
+var livestreamCacheSize = 100 * 1024 * 1024
+var livestreamCache = freecache.NewCache(livestreamCacheSize)
+
+func fetchLivestreamResponseWithCache(livestreamID int64) (*Livestream, error) {
+	key := fmt.Sprintf("live_stream_%d", int(livestreamID))
+	v, err, _ := group.Do(key, func() (interface{}, error) {
+		got, err := livestreamCache.Get([]byte(key))
+		if err == nil {
+			livestream := Livestream{}
+			err = json.Unmarshal(got, &livestream)
+			if err != nil {
+				return nil, err
+			}
+
+			return &livestream, nil
+		}
+
+		livestream, err := fetchLivestreamResponse(livestreamID)
+		if err != nil {
+			return nil, err
+		}
+
+		livestreamJson, err := json.Marshal(*livestream)
+		if err != nil {
+			return nil, err
+		}
+
+		// 60秒キャッシュ
+		livestreamCache.Set([]byte(key), []byte(livestreamJson), 60)
+
+		return livestream, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return v.(*Livestream), nil
+}
+
+func fetchLivestreamResponseWithCacheFixed(livestreamID int64) (*Livestream, error) {
+	livestream, err := fetchLivestreamResponseWithCache(livestreamID)
+	if err != nil {
+		return livestream, err
+	}
+
+	iconHash, err := getIconImageHashWithCache(livestream.Owner.ID)
+	livestream.Owner.IconHash = iconHash
+	if err != nil {
+		return livestream, err
+	}
+
 	return livestream, nil
 }

@@ -1,15 +1,15 @@
-DROP TABLE themes;
-DROP TABLE icons;
-DROP TABLE reservation_slots;
-DROP TABLE livestream_viewers_history;
-DROP TABLE livecomment_reports;
-DROP TABLE ng_words;
-DROP TABLE reactions;
-DROP TABLE tags;
-DROP TABLE livestream_tags;
-DROP TABLE livecomments;
-DROP TABLE livestreams;
-DROP TABLE users;
+DROP TABLE IF EXISTS themes;
+DROP TABLE IF EXISTS icons;
+DROP TABLE IF EXISTS reservation_slots;
+DROP TABLE IF EXISTS livestream_viewers_history;
+DROP TABLE IF EXISTS livecomment_reports;
+DROP TABLE IF EXISTS ng_words;
+DROP TABLE IF EXISTS reactions;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS livestream_tags;
+DROP TABLE IF EXISTS livecomments;
+DROP TABLE IF EXISTS livestreams;
+DROP TABLE IF EXISTS users;
 
 -- ユーザ (配信者、視聴者)
 CREATE TABLE `users` (
@@ -25,8 +25,10 @@ CREATE TABLE `users` (
 CREATE TABLE `icons` (
   `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `user_id` BIGINT NOT NULL,
-  `image` LONGBLOB NOT NULL
+  `image` LONGBLOB NOT NULL,
+  `hash` varchar(255)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+ALTER TABLE icons ADD INDEX icons_user_id_idx(user_id);
 
 -- ユーザごとのカスタムテーマ
 CREATE TABLE `themes` (
@@ -45,7 +47,11 @@ CREATE TABLE `livestreams` (
   `playlist_url` VARCHAR(255) NOT NULL,
   `thumbnail_url` VARCHAR(255) NOT NULL,
   `start_at` BIGINT NOT NULL,
-  `end_at` BIGINT NOT NULL
+  `end_at` BIGINT NOT NULL,
+  `viewer_count` BIGINT NOT NULL DEFAULT 0,
+  `reaction_count` BIGINT NOT NULL DEFAULT 0,
+  `total_tip` BIGINT NOT NULL DEFAULT 0,
+  `user_name` VARCHAR(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
 -- ライブ配信予約枠
@@ -71,6 +77,7 @@ CREATE TABLE `livestream_tags` (
   `tag_id` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 ALTER TABLE livestream_tags ADD INDEX livestream_id_idx(livestream_id);
+ALTER TABLE livestream_tags ADD INDEX tag_id_livestream_id_idx(tag_id, livestream_id DESC);
 
 -- ライブ配信視聴履歴
 CREATE TABLE `livestream_viewers_history` (
@@ -89,6 +96,7 @@ CREATE TABLE `livecomments` (
   `tip` BIGINT NOT NULL DEFAULT 0,
   `created_at` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livecomments_live_id ON livecomments(`livestream_id`, `created_at`);
 
 -- ユーザからのライブコメントのスパム報告
 CREATE TABLE `livecomment_reports` (
@@ -98,6 +106,7 @@ CREATE TABLE `livecomment_reports` (
   `livecomment_id` BIGINT NOT NULL,
   `created_at` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livecomment_reports_live_id ON livecomment_reports(`livestream_id`);
 
 -- 配信者からのNGワード登録
 CREATE TABLE `ng_words` (
@@ -122,3 +131,5 @@ CREATE TABLE `reactions` (
 
 -- コメントの全文検索
 ALTER TABLE `livecomments` ADD FULLTEXT (`comment`) WITH PARSER ngram;
+
+CREATE INDEX react_live_id ON reactions(`livestream_id`);
