@@ -116,7 +116,7 @@ func initializeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
 	}
 
-	if _, err := dbConn.ExecContext(c.Request().Context(), "UPDATE livestreams AS l SET l.user_name = (SELECT name FROM users AS u where r.user_id = u.id)"); err != nil {
+	if _, err := dbConn.ExecContext(c.Request().Context(), "UPDATE livestreams AS l SET l.user_name = (SELECT name FROM users AS u where l.user_id = u.id)"); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
 	}
 
