@@ -132,4 +132,4 @@ CREATE TABLE `reactions` (
 -- コメントの全文検索
 ALTER TABLE `livecomments` ADD FULLTEXT (`comment`) WITH PARSER ngram;
 
-CREATE INDEX react_live_id ON reactions(`livestream_id`);
+CREATE INDEX react_live_id ON reactions(`livestream_id`, `created_at` DESC);
