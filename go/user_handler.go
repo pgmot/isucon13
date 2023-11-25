@@ -493,12 +493,9 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		return User{}, err
 	}
 
-	var iconHash string
-	if err := tx.GetContext(ctx, &iconHash, "SELECT hash FROM icons WHERE user_id = ?", userModel.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return User{}, err
-		}
-		iconHash = fallbackHash
+	iconHash, err := getIconImageHashWithCache(userModel.ID)
+	if err != nil {
+		return User{}, err
 	}
 
 	user := User{
