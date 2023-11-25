@@ -115,7 +115,9 @@ func getIconHandler(c echo.Context) error {
 	c.Logger().Debug("icon_hash", iconHash, iconHashInDb)
 
 	if iconHash == iconHashInDb {
-		c.Logger().Debug("icon_hash matched", iconHash, iconHashInDb)
+		c.Logger().Debug("icon_hash matched")
+		c.Logger().Debug(iconHash, iconHashInDb)
+		c.Logger().Debug(iconHashInDb)
 		return c.NoContent(http.StatusNotModified)
 	}
 
