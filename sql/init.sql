@@ -1,15 +1,15 @@
-DROP TABLE themes;
-DROP TABLE icons;
-DROP TABLE reservation_slots;
-DROP TABLE livestream_viewers_history;
-DROP TABLE livecomment_reports;
-DROP TABLE ng_words;
-DROP TABLE reactions;
-DROP TABLE tags;
-DROP TABLE livestream_tags;
-DROP TABLE livecomments;
-DROP TABLE livestreams;
-DROP TABLE users;
+DROP TABLE IF EXISTS themes;
+DROP TABLE IF EXISTS icons;
+DROP TABLE IF EXISTS reservation_slots;
+DROP TABLE IF EXISTS livestream_viewers_history;
+DROP TABLE IF EXISTS livecomment_reports;
+DROP TABLE IF EXISTS ng_words;
+DROP TABLE IF EXISTS reactions;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS livestream_tags;
+DROP TABLE IF EXISTS livecomments;
+DROP TABLE IF EXISTS livestreams;
+DROP TABLE IF EXISTS users;
 
 -- ユーザ (配信者、視聴者)
 CREATE TABLE `users` (
@@ -50,7 +50,8 @@ CREATE TABLE `livestreams` (
   `end_at` BIGINT NOT NULL,
   `viewer_count` BIGINT NOT NULL DEFAULT 0,
   `reaction_count` BIGINT NOT NULL DEFAULT 0,
-  `total_tip` BIGINT NOT NULL DEFAULT 0
+  `total_tip` BIGINT NOT NULL DEFAULT 0,
+  `user_name` VARCHAR(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
 -- ライブ配信予約枠
@@ -95,7 +96,7 @@ CREATE TABLE `livecomments` (
   `tip` BIGINT NOT NULL DEFAULT 0,
   `created_at` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-CREATE INDEX livecomments_live_id ON livecomments(`livestream_id`);
+CREATE INDEX livecomments_live_id ON livecomments(`livestream_id`, `created_at`);
 
 -- ユーザからのライブコメントのスパム報告
 CREATE TABLE `livecomment_reports` (

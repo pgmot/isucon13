@@ -44,6 +44,7 @@ type LivestreamModel struct {
 	ViewerCount   int64  `db:"viewer_count" json:"-"`
 	ReactionCount int64  `db:"reaction_count" json:"-"`
 	TotalTip      int64  `db:"total_tip" json:"-"`
+	UserName      string `db:"user_name" json:"-"`
 }
 
 type Livestream struct {
@@ -124,6 +125,10 @@ func reserveLivestreamHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("予約期間 %d ~ %dに対して、予約区間 %d ~ %dが予約できません", termStartAt.Unix(), termEndAt.Unix(), req.StartAt, req.EndAt))
 		}
 	}
+	var username string
+	if err := tx.GetContext(ctx, &username, "SELECT name FROM users WHERE id = ?", userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get users: "+err.Error())
+	}
 
 	var (
 		livestreamModel = &LivestreamModel{
@@ -134,6 +139,7 @@ func reserveLivestreamHandler(c echo.Context) error {
 			ThumbnailUrl: req.ThumbnailUrl,
 			StartAt:      req.StartAt,
 			EndAt:        req.EndAt,
+			UserName:     username,
 		}
 	)
 
@@ -141,7 +147,7 @@ func reserveLivestreamHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update reservation_slot: "+err.Error())
 	}
 
-	rs, err := tx.NamedExecContext(ctx, "INSERT INTO livestreams (user_id, title, description, playlist_url, thumbnail_url, start_at, end_at) VALUES(:user_id, :title, :description, :playlist_url, :thumbnail_url, :start_at, :end_at)", livestreamModel)
+	rs, err := tx.NamedExecContext(ctx, "INSERT INTO livestreams (user_id, title, description, playlist_url, thumbnail_url, start_at, end_at, user_name) VALUES(:user_id, :title, :description, :playlist_url, :thumbnail_url, :start_at, :end_at, :user_name)", livestreamModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livestream: "+err.Error())
 	}
