@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -354,7 +353,6 @@ func registerHandler(c echo.Context) error {
 	// TODO TTL 0 => 3600にする
 	url := fmt.Sprintf("http://%s:%d/api/v1/servers/localhost/zones/u.isucon.dev.", powerDNSAddress, 8081)
 	payload := fmt.Sprintf(`{"rrsets": [{"name": "%s.u.isucon.dev.", "type": "A", "ttl": 0, "changetype": "REPLACE", "records": [{"content": "%s", "disabled": false}]}]}`, req.Name, powerDNSSubdomainAddress)
-	fmt.Printf("ADD_DOMAIN %s %s %s\n", req.Name, url, payload)
 
 	addRecordReq, err := http.NewRequest("PATCH", url, bytes.NewBufferString(payload))
 	if err != nil {
@@ -370,14 +368,11 @@ func registerHandler(c echo.Context) error {
 	defer addRecordResp.Body.Close()
 
 	if addRecordResp.StatusCode != 204 {
-		body, err := io.ReadAll(addRecordResp.Body)
-		fmt.Printf("ADD_DOMAIN_NG: %s\n", body)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to read body: "+err.Error())
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to add record: "+err.Error())
 	}
-	fmt.Printf("ADD_DOMAIN_OK: %s\n", req.Name)
 
 	user, err := fillUserResponse(ctx, tx, userModel)
 	if err != nil {
