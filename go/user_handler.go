@@ -542,7 +542,7 @@ var userCacheSize = 100 * 1024 * 1024
 var userCache = freecache.NewCache(userCacheSize)
 
 func fetchUserResponseWithCache(userID int64) (*User, error) {
-	key := fmt.Sprintf("live_stream_%d", int(userID))
+	key := fmt.Sprintf("user_%d", int(userID))
 	v, err, _ := group.Do(key, func() (interface{}, error) {
 		got, err := userCache.Get([]byte(key))
 		if err == nil {
