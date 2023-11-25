@@ -123,7 +123,7 @@ func postReactionHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert reaction: "+err.Error())
 	}
 
-	if _, err := tx.ExecContext(ctx, "UPDATE livestream SET reaction_count = reaction_count + 1 WHERE id = ?", livestreamID); err != nil {
+	if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET reaction_count = reaction_count + 1 WHERE id = ?", livestreamID); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update reaction_count: "+err.Error())
 	}
 

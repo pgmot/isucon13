@@ -235,6 +235,12 @@ func postLivecommentHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livecomment: "+err.Error())
 	}
 
+	if livecommentModel.Tip > 0 {
+		if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET total_tip = total_tip + ? WHERE id = ?", livecommentModel.Tip, livestreamID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to update total_tip: "+err.Error())
+		}
+	}
+
 	livecommentID, err := rs.LastInsertId()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get last inserted livecomment id: "+err.Error())
@@ -411,6 +417,10 @@ func moderateHandler(c echo.Context) error {
 				return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old livecomments that hit spams: "+err.Error())
 			}
 		}
+	}
+
+	if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET total_tip = (SELECT IFNULL(SUM(tip), 0) FROM livecomments WHERE livestream_id = ?) WHERE id = ?", livestreamID, livestreamID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update total_tip: "+err.Error())
 	}
 
 	if err := tx.Commit(); err != nil {
