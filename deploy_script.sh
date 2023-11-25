@@ -9,7 +9,7 @@
  
  APP="isupipe"
  LANG="go"
- SERVICE="$APP.$LANG"
+ SERVICE="$APP-$LANG.service"
  ISU1="35-78-4-198"
  ISU2="52-198-25-14"
  ISU3="54-248-18-134"
