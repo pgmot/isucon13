@@ -88,17 +88,24 @@ func getUserStatisticsHandler(c echo.Context) error {
 
 	// ランク算出
 	var livestreamsScore []*LivestreamModel
-	if err := tx.SelectContext(ctx, &livestreamsScore, "SELECT * FROM livestreams"); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := tx.GetContext(ctx, &livestreamsScore, "SELECT * FROM livestreams"); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
+	}
+
+	var users []UserModel
+	if err := tx.GetContext(ctx, &users, "SELECT * FROM users"); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
 	var ranking UserRanking
 	usernameScoreMap := map[string]int64{}
+
+	for _, v := range users {
+		usernameScoreMap[v.Name] = 0
+	}
+
 	for _, livestream := range livestreamsScore {
-		if _, ok := usernameScoreMap[livestream.UserName]; !ok {
-			usernameScoreMap[livestream.UserName] = 0
-		}
-		usernameScoreMap[livestream.UserName] += livestream.ReactionCount + livestream.TotalTip
+		usernameScoreMap[livestream.UserName] += (livestream.ReactionCount + livestream.TotalTip)
 	}
 
 	for k, v := range usernameScoreMap {
