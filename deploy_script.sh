@@ -38,7 +38,7 @@
  esac
  
  #### AFTER STOP
- [ -f "/var/log/nginx/access.log" ] && sudo mv /var/log/nginx/access.log /var/log/nginx/access.log.`date "+%Y%m%d_%H%M%S"`; fi
+ [ -f "/var/log/nginx/access.log" ] && sudo mv /var/log/nginx/access.log /var/log/nginx/access.log.`date "+%Y%m%d_%H%M%S"`
  [ -f "/var/log/nginx/error.log" ] && sudo mv /var/log/nginx/error.log /var/log/nginx/error.log.`date "+%Y%m%d_%H%M%S"`
  [ -f "/var/log/mysql/slow_query.log" ] && sudo mv /var/log/mysql/slow_query.log /var/log/mysql/slow_query.log.`date "+%Y%m%d_%H%M%S"`
  
