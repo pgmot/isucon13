@@ -88,12 +88,12 @@ func getUserStatisticsHandler(c echo.Context) error {
 
 	// ランク算出
 	var livestreamsScore []*LivestreamModel
-	if err := tx.GetContext(ctx, &livestreamsScore, "SELECT * FROM livestreams"); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := tx.SelectContext(ctx, &livestreamsScore, "SELECT * FROM livestreams"); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 
-	var users []UserModel
-	if err := tx.GetContext(ctx, &users, "SELECT * FROM users"); err != nil {
+	var users []*UserModel
+	if err := tx.SelectContext(ctx, &users, "SELECT * FROM users"); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
