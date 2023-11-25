@@ -112,14 +112,8 @@ func getIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user icon: "+err.Error())
 	}
 
-	c.Logger().Debug("icon_hash")
-	c.Logger().Debug(iconHash)
-	c.Logger().Debug(iconHashInDb)
-
+	// なぜかクォートが必要
 	if iconHash == "\""+iconHashInDb+"\"" {
-		c.Logger().Debug("icon_hash matched")
-		c.Logger().Debug(iconHash, iconHashInDb)
-		c.Logger().Debug(iconHashInDb)
 		return c.NoContent(http.StatusNotModified)
 	}
 
