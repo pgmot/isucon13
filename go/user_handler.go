@@ -353,7 +353,7 @@ func registerHandler(c echo.Context) error {
 	*/
 	// TODO TTL 0 => 3600にする
 	url := fmt.Sprintf("http://%s:%d/api/v1/servers/localhost/zones/u.isucon.dev.", powerDNSAddress, 8081)
-	payload := fmt.Sprintf(`{"rrsets": [{"name": "%s.u.isucon.dev.", "type": "A", "ttl": 0, "changetype": "REPLACE", "records": [{"content": "%s", "disabled": false}]}]}`, req.Name, powerDNSSubdomainAddress)
+	payload := fmt.Sprintf(`{"rrsets": [{"name": "%s.u.isucon.dev.", "type": "A", "ttl": 3600, "changetype": "REPLACE", "records": [{"content": "%s", "disabled": false}]}]}`, req.Name, powerDNSSubdomainAddress)
 	fmt.Printf("ADD_DOMAIN %s %s %s\n", req.Name, url, payload)
 
 	addRecordReq, err := http.NewRequest("PATCH", url, bytes.NewBufferString(payload))
