@@ -165,11 +165,7 @@ func getUserStatisticsHandler(c echo.Context) error {
 	// 合計視聴者数
 	var viewersCount int64
 	for _, livestream := range livestreams {
-		var cnt int64
-		if err := tx.GetContext(ctx, &cnt, "SELECT COUNT(*) FROM livestream_viewers_history WHERE livestream_id = ?", livestream.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestream_view_history: "+err.Error())
-		}
-		viewersCount += cnt
+		viewersCount += livestream.ViewerCount
 	}
 
 	// お気に入り絵文字
@@ -262,12 +258,6 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		rank++
 	}
 
-	// 視聴者数算出
-	var viewersCount int64
-	if err := tx.GetContext(ctx, &viewersCount, `SELECT COUNT(*) FROM livestreams l INNER JOIN livestream_viewers_history h ON h.livestream_id = l.id WHERE l.id = ?`, livestreamID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count livestream viewers: "+err.Error())
-	}
-
 	// 最大チップ額
 	var maxTip int64
 	if err := tx.GetContext(ctx, &maxTip, `SELECT IFNULL(MAX(tip), 0) FROM livestreams l INNER JOIN livecomments l2 ON l2.livestream_id = l.id WHERE l.id = ?`, livestreamID); err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -292,7 +282,7 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, LivestreamStatistics{
 		Rank:           rank,
-		ViewersCount:   viewersCount,
+		ViewersCount:   livestream.ViewerCount,
 		MaxTip:         maxTip,
 		TotalReactions: totalReactions,
 		TotalReports:   totalReports,
