@@ -116,7 +116,7 @@ func getIconHandler(c echo.Context) error {
 	c.Logger().Debug(iconHash)
 	c.Logger().Debug(iconHashInDb)
 
-	if iconHash == iconHashInDb {
+	if iconHash == "\""+iconHashInDb+"\"" {
 		c.Logger().Debug("icon_hash matched")
 		c.Logger().Debug(iconHash, iconHashInDb)
 		c.Logger().Debug(iconHashInDb)
