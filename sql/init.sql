@@ -34,6 +34,7 @@ CREATE TABLE `themes` (
   `user_id` BIGINT NOT NULL,
   `dark_mode` BOOLEAN NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+ALTER TABLE themes ADD INDEX themes_user_id_idx(user_id);
 
 -- ライブ配信
 CREATE TABLE `livestreams` (
@@ -54,6 +55,7 @@ CREATE TABLE `reservation_slots` (
   `start_at` BIGINT NOT NULL,
   `end_at` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+ALTER TABLE reservation_slots ADD INDEX rs_start_end_idx(start_at, end_at);
 
 -- ライブストリームに付与される、サービスで定義されたタグ
 CREATE TABLE `tags` (
@@ -68,6 +70,7 @@ CREATE TABLE `livestream_tags` (
   `livestream_id` BIGINT NOT NULL,
   `tag_id` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+ALTER TABLE livestream_tags ADD INDEX livestream_id_idx(livestream_id);
 
 -- ライブ配信視聴履歴
 CREATE TABLE `livestream_viewers_history` (
@@ -105,6 +108,7 @@ CREATE TABLE `ng_words` (
   `created_at` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 CREATE INDEX ng_words_word ON ng_words(`word`);
+CREATE INDEX ng_words_user_stream ON ng_words(`user_id`, `livestream_id`);
 
 -- ライブ配信に対するリアクション
 CREATE TABLE `reactions` (
