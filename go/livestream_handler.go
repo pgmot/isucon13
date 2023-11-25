@@ -495,7 +495,7 @@ func fillLivestreamResponse(ctx context.Context, tx *sqlx.Tx, livestreamModel Li
 
 	livestream := Livestream{
 		ID:           livestreamModel.ID,
-		Owner:        owner,
+		Owner:        *owner,
 		Title:        livestreamModel.Title,
 		Tags:         tags,
 		Description:  livestreamModel.Description,
