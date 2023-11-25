@@ -50,7 +50,8 @@ CREATE TABLE `livestreams` (
   `end_at` BIGINT NOT NULL,
   `viewer_count` BIGINT NOT NULL DEFAULT 0,
   `reaction_count` BIGINT NOT NULL DEFAULT 0,
-  `total_tip` BIGINT NOT NULL DEFAULT 0
+  `total_tip` BIGINT NOT NULL DEFAULT 0,
+  `user_name` VARCHAR(255) NOT NULL DEFAULT '',
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
 -- ライブ配信予約枠
