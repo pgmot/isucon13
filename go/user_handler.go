@@ -113,7 +113,7 @@ func getIconHandler(c echo.Context) error {
 	}
 
 	c.Logger().Debug("icon_hash")
-	c.Logger().Debug(iconHash, iconHashInDb)
+	c.Logger().Debug(iconHash)
 	c.Logger().Debug(iconHashInDb)
 
 	if iconHash == iconHashInDb {
