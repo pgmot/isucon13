@@ -2,8 +2,7 @@
 set -eux
 set -o pipefail
 
-export PATH="$HOME/local/go/bin:/home/isucon/go/bin:$PATH"
-export GOROOT="$HOME/local/go"
+export PATH="$HOME/local/golang/bin:/home/isucon/golang/bin:$PATH"
 
 BRANCH="${1:-"master"}"
 
