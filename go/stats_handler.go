@@ -93,7 +93,7 @@ func getUserStatisticsHandler(c echo.Context) error {
 	}
 
 	var ranking UserRanking
-	var usernameScoreMap map[string]int64
+	usernameScoreMap := map[string]int64{}
 	for _, livestream := range livestreamsScore {
 		if _, ok := usernameScoreMap[livestream.UserName]; !ok {
 			usernameScoreMap[livestream.UserName] = 0
