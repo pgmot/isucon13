@@ -10,9 +10,9 @@
  APP="isupipe"
  LANG="go"
  SERVICE="$APP-$LANG.service"
- ISU1="35-78-4-198"
- ISU2="52-198-25-14"
- ISU3="54-248-18-134"
+ ISU1="ip-192-168-0-11"
+ ISU2="ip-192-168-0-13"
+ ISU3="ip-192-168-0-12"
  DEFAULT_BRANCH="master"
  
  #### ARGS
@@ -31,7 +31,7 @@
  "$ISU1")
      ;;
  "$ISU2")
-     sudo systemctl stop nginx
+     # sudo systemctl stop nginx
      ;;
  "$ISU3")
      ;;
@@ -45,7 +45,7 @@
  # [ "`hostname`" = "$ISU1" ] && sudo systemctl restart mariadb
  
  #### BUILD
- cd webapp/$LANG
+ cd $LANG
  # ./setup.sh
  make build
  
@@ -56,13 +56,10 @@
  "$ISU1")
      ;;
  "$ISU2")
-     sudo systemctl s nginx
+     # sudo systemctl s nginx
      # sudo systemctl restart openresty
      ;;
  "$ISU3")
      ;;
  esac
     
- #### AFTER START
- echo "deployed to $(hostname)" | notify_slack
- [ "`hostname`" = "$ISU1" ] && sudo systemctl status torb.ruby | notify_slack
