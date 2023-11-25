@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"strconv"
 	"time"
 
@@ -202,8 +203,9 @@ func postLivecommentHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get NG words: "+err.Error())
 	}
 
-	var hitSpam int
+	// var hitSpam int
 	for _, ngword := range ngwords {
+		/*
 		query := `
 		SELECT COUNT(*)
 		FROM
@@ -216,8 +218,12 @@ func postLivecommentHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get hitspam: "+err.Error())
 		}
 		c.Logger().Infof("[hitSpam=%d] comment = %s", hitSpam, req.Comment)
-		if hitSpam >= 1 {
+		*/
+		if strings.Contains(req.Comment, ngword.Word) {
+			c.Logger().Infof("[hitSpam=%d] comment = %s", 1, req.Comment)
 			return echo.NewHTTPError(http.StatusBadRequest, "このコメントがスパム判定されました")
+		} else {
+			c.Logger().Infof("[hitSpam=%d] comment = %s", 0, req.Comment)
 		}
 	}
 
@@ -395,6 +401,11 @@ func moderateHandler(c echo.Context) error {
 	// NGワードにヒットする過去の投稿も全削除する
 	for _, ngword := range ngwords {
 		// ライブコメント一覧取得
+		query := `DELETE FROM livecomments WHERE livestream_id = ? AND comment LIKE CONCAT('%', ?, '%')`
+		if _, err := tx.ExecContext(ctx, query, livestreamID, ngword.Word); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old livecomments that hit spams: "+err.Error())
+		}
+		/*
 		var livecomments []*LivecommentModel
 		if err := tx.SelectContext(ctx, &livecomments, "SELECT * FROM livecomments"); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
@@ -417,6 +428,7 @@ func moderateHandler(c echo.Context) error {
 				return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old livecomments that hit spams: "+err.Error())
 			}
 		}
+		*/
 	}
 
 	if _, err := tx.ExecContext(ctx, "UPDATE livestreams SET total_tip = (SELECT IFNULL(SUM(tip), 0) FROM livecomments WHERE livestream_id = ?) WHERE id = ?", livestreamID, livestreamID); err != nil {

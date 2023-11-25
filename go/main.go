@@ -4,6 +4,7 @@ package main
 // sqlx的な参考: https://jmoiron.github.io/sqlx/
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -24,11 +26,13 @@ import (
 
 const (
 	listenPort                     = 8080
+	powerDNSAddressEnvKey          = "ISUCON13_POWERDNS_ADDRESS"
 	powerDNSSubdomainAddressEnvKey = "ISUCON13_POWERDNS_SUBDOMAIN_ADDRESS"
 )
 
 var (
 	powerDNSSubdomainAddress string
+	powerDNSAddress          string
 	dbConn                   *sqlx.DB
 	secret                   = []byte("isucon13_session_cookiestore_defaultsecret")
 )
@@ -109,9 +113,49 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
-	if out, err := exec.Command("../sql/init.sh").CombinedOutput(); err != nil {
-		c.Logger().Warnf("init.sh failed with err=%s", string(out))
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	initDbResultChan := make(chan error, 1)
+	go func() {
+		if out, err := exec.Command("../sql/init.sh").CombinedOutput(); err != nil {
+			c.Logger().Warnf("init.sh failed with err=%s", string(out))
+			initDbResultChan <- err
+			return
+		}
+		initDbResultChan <- nil
+	}()
+
+	initPdnsResultChan := make(chan error, 1)
+	go func() {
+		url := fmt.Sprintf("http://%s:%d/api/initialize_pdns", powerDNSAddress, 8080)
+		if _, err := http.Post(url, "application/json", nil); err != nil {
+			c.Logger().Warnf("/initialize_pdns failed with err=%s", string(err.Error()))
+			initPdnsResultChan <- err
+			return
+		}
+		initPdnsResultChan <- nil
+	}()
+
+	var initDbResult error
+	var initPdnsResult error
+
+	for i := 0; i < 2; i++ {
+		select {
+		case result := <-initDbResultChan:
+			initDbResult = result
+		case result := <-initPdnsResultChan:
+			initPdnsResult = result
+		case <-time.After(40 * time.Second):
+			// 初期化処理の実行 POST /api/initialize（42秒でタイムアウト）
+			// 40秒でタイムアウトする
+			initDbResult = errors.New("timeout")
+			initPdnsResult = errors.New("timeout")
+		}
+	}
+
+	if initDbResult != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize db: "+ initDbResult.Error())
+	}
+	if initPdnsResult != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize pdns: "+ initPdnsResult.Error())
 	}
 
 	if _, err := dbConn.ExecContext(c.Request().Context(), "UPDATE livestreams AS l SET l.reaction_count = (SELECT COUNT(*) FROM reactions AS r where r.livestream_id = l.id)"); err != nil {
@@ -128,6 +172,16 @@ func initializeHandler(c echo.Context) error {
 	})
 }
 
+func initializePdnsHandler(c echo.Context) error {
+	if out, err := exec.Command("../pdns/init_zone.sh").CombinedOutput(); err != nil {
+		c.Logger().Warnf("init_zone.sh failed with err=%s", string(out))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	}
+
+	c.Request().Header.Add("Content-Type", "application/json;charset=utf-8")
+	return c.JSON(http.StatusOK, nil)
+}
+
 func main() {
 	e := echo.New()
 	e.Debug = true
@@ -140,6 +194,7 @@ func main() {
 
 	// 初期化
 	e.POST("/api/initialize", initializeHandler)
+	e.POST("/api/initialize_pdns", initializePdnsHandler)
 
 	// top
 	e.GET("/api/tag", getTagHandler)
@@ -203,12 +258,20 @@ func main() {
 	defer conn.Close()
 	dbConn = conn
 
+	// 環境変数
 	subdomainAddr, ok := os.LookupEnv(powerDNSSubdomainAddressEnvKey)
 	if !ok {
 		e.Logger.Errorf("environ %s must be provided", powerDNSSubdomainAddressEnvKey)
 		os.Exit(1)
 	}
 	powerDNSSubdomainAddress = subdomainAddr
+
+	powerDNSAddr, ok := os.LookupEnv(powerDNSAddressEnvKey)
+	if !ok {
+		e.Logger.Errorf("environ %s must be provided", powerDNSSubdomainAddressEnvKey)
+		os.Exit(1)
+	}
+	powerDNSAddress = powerDNSAddr
 
 	// HTTPサーバ起動
 	listenAddr := net.JoinHostPort("", strconv.Itoa(listenPort))
