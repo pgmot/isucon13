@@ -115,8 +115,7 @@ func getIconHandler(c echo.Context) error {
 	c.Logger().Debug("icon_hash", iconHash, iconHashInDb)
 
 	if iconHash == iconHashInDb {
-		c.Response().WriteHeader(304)
-		return nil
+		return c.NoContent(http.StatusNotModified)
 	}
 
 	image, err := getIconImageWithCache(user.ID)
