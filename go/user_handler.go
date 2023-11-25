@@ -488,13 +488,24 @@ func verifyUserSession(c echo.Context) error {
 }
 
 func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (User, error) {
-	themeModel := ThemeModel{}
-	if err := tx.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
-		return User{}, err
+	user, err := fillUserResponseBase(ctx, userModel)
+	if err != nil {
+		return user, err
 	}
 
 	iconHash, err := getIconImageHashWithCache(userModel.ID)
 	if err != nil {
+		return user, err
+	}
+
+	user.IconHash = iconHash
+
+	return user, nil
+}
+
+func fillUserResponseBase(ctx context.Context, userModel UserModel) (User, error) {
+	themeModel := ThemeModel{}
+	if err := dbConn.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
 		return User{}, err
 	}
 
@@ -507,7 +518,75 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 			ID:       themeModel.ID,
 			DarkMode: themeModel.DarkMode,
 		},
-		IconHash: iconHash,
+		IconHash: "",
+	}
+
+	return user, nil
+}
+
+func fetchUserResponse(userID int64) (*User, error) {
+	ctx := context.Background()
+	userModel := UserModel{}
+	if err := dbConn.GetContext(ctx, &userModel, "SELECT * FROM users WHERE id = ?", userID); err != nil {
+		return nil, err
+	}
+	user, err := fillUserResponseBase(ctx, userModel)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+var userCacheSize = 100 * 1024 * 1024
+var userCache = freecache.NewCache(userCacheSize)
+
+func fetchUserResponseWithCache(userID int64) (*User, error) {
+	key := fmt.Sprintf("live_stream_%d", int(userID))
+	v, err, _ := group.Do(key, func() (interface{}, error) {
+		got, err := userCache.Get([]byte(key))
+		if err == nil {
+			user := User{}
+			err = json.Unmarshal(got, &user)
+			if err != nil {
+				return nil, err
+			}
+
+			return &user, nil
+		}
+
+		user, err := fetchUserResponse(userID)
+		if err != nil {
+			return nil, err
+		}
+
+		userJson, err := json.Marshal(*user)
+		if err != nil {
+			return nil, err
+		}
+
+		// 60秒キャッシュ
+		userCache.Set([]byte(key), []byte(userJson), 60)
+
+		return user, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return v.(*User), nil
+}
+
+func fetchUserResponseWithCacheFixed(userID int64) (*User, error) {
+	user, err := fetchUserResponseWithCache(userID)
+	if err != nil {
+		return user, err
+	}
+
+	iconHash, err := getIconImageHashWithCache(user.ID)
+	user.IconHash = iconHash
+	if err != nil {
+		return user, err
 	}
 
 	return user, nil
