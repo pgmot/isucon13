@@ -93,7 +93,7 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 		conf.ParseTime = parseTime
 	}
 
-	db, err := sqlx.Open("mysql", conf.FormatDSN())
+	db, err := sqlx.Open("mysql", conf.FormatDSN()+"&interpolateParams=true")
 	if err != nil {
 		return nil, err
 	}
