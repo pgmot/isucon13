@@ -112,6 +112,8 @@ func getIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user icon: "+err.Error())
 	}
 
+	c.Logger().Debug("icon_hash", iconHash, iconHashInDb)
+
 	if iconHash == iconHashInDb {
 		c.Response().WriteHeader(304)
 		return nil
